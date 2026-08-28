@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 try:
@@ -36,10 +36,26 @@ def health_check():
 @app.post("/debate", response_model=DebateResponse)
 def debate_endpoint(request: DebateRequest) -> DebateResponse:
     """Run a multi-round debate on the specified topic and return full transcript and verdict."""
-    return run_debate(topic=request.topic, num_rounds=request.num_rounds)
+    topic = request.topic.strip() if request.topic else ""
+    if not topic:
+        raise HTTPException(status_code=400, detail="Debate topic cannot be empty.")
+
+    if request.num_rounds not in (2, 3):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid num_rounds ({request.num_rounds}). Debate simulator supports strictly 2 or 3 rounds.",
+        )
+
+    try:
+        return run_debate(topic=topic, num_rounds=request.num_rounds)
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Debate execution failed: {str(exc)}")
 
 
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("backend.main:app", host="0.0.0.0", port=8000, reload=True)
+
